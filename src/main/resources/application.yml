@@ -59,13 +59,12 @@ spring:
           time-between-eviction-runs: 30000ms
 
       # Cluster Ayarı (OSS Cluster API)
-      # ÖNEMLİ: Lokal makineden (OpenShift dışından) bağlanırken Redis Enterprise DMC Proxy kullanılır (cluster kapalı).
-      # Çünkü Cluster modu açıldığında Redis sunucusu içerideki özel Pod IP'sini (10.131.4.91:12021) döner ve lokalden bu IP'ye erişilemez (Timeout).
-      # Uygulama OpenShift içine deploy edildiğinde ise Pod IP'lerine erişebildiği için aşağıdaki blok aktif edilir:
-      # cluster:
-      #   nodes:
-      #     - ${REDIS_HOST:ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}:${REDIS_PORT:40743}
-      #   max-redirects: 5
+      # ConfigMap üzerinden REDIS_CLUSTER_NODES tanımlanarak dinamik olarak ayarlanabilir.
+      # Tek node (host:port) veya çoklu node için virgülle ayrılmış liste girilebilir (Örn: "node1:6379,node2:6379").
+      # Boş bırakıldığında lokal/proxy (standalone) modunda çalışır.
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES:}
+        max-redirects: ${REDIS_CLUSTER_MAX_REDIRECTS:5}
 
       # Socket / TCP Tuning
       socket:

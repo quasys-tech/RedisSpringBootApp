@@ -14,6 +14,7 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.data.redis.LettuceClientConfigurationBuilderCustomizer;
+import org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -68,6 +69,53 @@ public class RedisConfiguration {
             clientResourcesBuilder.reconnectDelay(
                     Delay.exponential(Duration.ofMillis(100), maxDelay, 2, TimeUnit.MILLISECONDS)
             );
+        };
+    }
+
+    /**
+     * Dynamic Redis Connection Details supporting seamless switching between Cluster and Standalone modes.
+     * When cluster nodes are configured (e.g. from Kubernetes/OpenShift ConfigMap via REDIS_CLUSTER_NODES),
+     * Cluster connection details are provided.
+     * When cluster nodes are not configured or empty (e.g. local environment using DMC proxy),
+     * it falls back to Standalone connection details (host and port) gracefully without error.
+     */
+    @Bean
+    public RedisConnectionDetails redisConnectionDetails(RedisProperties redisProperties) {
+        return new RedisConnectionDetails() {
+            @Override
+            public String getUsername() {
+                return redisProperties.getUsername();
+            }
+
+            @Override
+            public String getPassword() {
+                return redisProperties.getPassword();
+            }
+
+            @Override
+            public Standalone getStandalone() {
+                return Standalone.of(redisProperties.getHost(), redisProperties.getPort(), redisProperties.getDatabase());
+            }
+
+            @Override
+            public Cluster getCluster() {
+                if (redisProperties.getCluster() == null || redisProperties.getCluster().getNodes() == null) {
+                    return null;
+                }
+                List<Node> nodes = redisProperties.getCluster().getNodes().stream()
+                        .filter(StringUtils::hasText)
+                        .flatMap(entry -> java.util.Arrays.stream(entry.split(",")))
+                        .map(String::trim)
+                        .filter(StringUtils::hasText)
+                        .map(node -> {
+                            String[] parts = node.split(":");
+                            String host = parts[0].trim();
+                            int port = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 6379;
+                            return new Node(host, port);
+                        })
+                        .toList();
+                return nodes.isEmpty() ? null : () -> nodes;
+            }
         };
     }
 
@@ -140,7 +188,7 @@ public class RedisConfiguration {
 
             boolean isCluster = redisProperties.getCluster() != null
                     && redisProperties.getCluster().getNodes() != null
-                    && !redisProperties.getCluster().getNodes().isEmpty();
+                    && redisProperties.getCluster().getNodes().stream().anyMatch(StringUtils::hasText);
 
             if (isCluster) {
                 log.info("Cluster nodes configured. Applying ClusterTopologyRefreshOptions.");

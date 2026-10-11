@@ -74,4 +74,20 @@ class RedisEnterpriseApplicationTests {
             System.out.println("Live Redis ping skipped (offline/sandbox environment): " + ex.getMessage());
         }
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails redisConnectionDetails;
+
+    @Test
+    void testRedisConnectionDetails() {
+        org.junit.jupiter.api.Assertions.assertNotNull(redisConnectionDetails);
+        org.junit.jupiter.api.Assertions.assertNotNull(redisConnectionDetails.getStandalone());
+        org.junit.jupiter.api.Assertions.assertEquals("ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr", redisConnectionDetails.getStandalone().getHost());
+        if (redisProperties.getCluster() != null && redisProperties.getCluster().getNodes() != null
+                && redisProperties.getCluster().getNodes().stream().anyMatch(org.springframework.util.StringUtils::hasText)) {
+            org.junit.jupiter.api.Assertions.assertNotNull(redisConnectionDetails.getCluster());
+        } else {
+            org.junit.jupiter.api.Assertions.assertNull(redisConnectionDetails.getCluster());
+        }
+    }
 }
