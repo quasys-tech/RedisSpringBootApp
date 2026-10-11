@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-demo-service
+  labels:
+    app: redis-demo
+    app.kubernetes.io/name: redis-demo
+    app.kubernetes.io/part-of: redis-enterprise-demo
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: redis-demo

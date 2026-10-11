@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-demo
+  labels:
+    app: redis-demo
+    app.kubernetes.io/name: redis-demo
+    app.kubernetes.io/part-of: redis-enterprise-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-demo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: redis-demo
+        app.kubernetes.io/name: redis-demo
+    spec:
+      # OpenShift Security Context Constraints (SCC) uyumluluğu
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: redis-demo
+          # Registry ve Image Tag bilginizi ortamınıza göre güncelleyiniz
+          image: image-registry.openshift-image-registry.svc:5000/quasys-test/redis-demo:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # Çevre değişkenleri: Password Secret'tan, diğer tüm ayarlar ConfigMap'ten okunur
+          envFrom:
+            - configMapRef:
+                name: redis-demo-config
+            - secretRef:
+                name: redis-demo-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+          # Liveness Probe: Pod'un canlılığını denetler (Kilitlenme durumunda restart eder)
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Readiness Probe: Pod'un trafik almadan önce Redis bağlantısının hazır olduğunu doğrular
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL

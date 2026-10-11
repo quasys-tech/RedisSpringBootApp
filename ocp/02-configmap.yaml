@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-demo-config
+  labels:
+    app: redis-demo
+    app.kubernetes.io/name: redis-demo
+    app.kubernetes.io/part-of: redis-enterprise-demo
+data:
+  # ============================================================================
+  # Redis Enterprise Bağlantı Parametreleri
+  # ============================================================================
+  # Redis Host & Port: OpenShift içinden Route veya cluster-içi Service DNS'i
+  REDIS_HOST: "ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr"
+  REDIS_PORT: "40743"
+
+  # Redis Kimlik Doğrulama (Kullanıcı Adı)
+  REDIS_USERNAME: "quasysuser"
+
+  # Redis Enterprise Veritabanı ID'si (Redis Enterprise & Cluster mimarisinde her zaman 0 olmalıdır)
+  REDIS_DATABASE: "0"
+
+  # Redis Protokol Versiyonu (RESP2 veya RESP3)
+  # ACL kısıtlı kullanıcılarda Lettuce 'CLIENT SETINFO' NOPERM hatası alınırsa RESP2 kullanılabilir
+  REDIS_PROTOCOL: "RESP3"
+
+  # Key Prefix (ACL Multi-tenancy ve Namespace desteği)
+  # Belirtilirse tüm cache ve RedisTemplate key'lerinin başına eklenir (örn: "quasys:")
+  REDIS_KEY_PREFIX: ""
+
+  # ============================================================================
+  # TLS / SSL ve SNI (Server Name Indication) Ayarları
+  # ============================================================================
+  # OpenShift Router/Ingress üzerinden bağlantı kurulurken TLS ve SNI zorunludur
+  REDIS_SSL_ENABLED: "true"
+  REDIS_SSL_USE_SNI: "true"
+  # Boş bırakıldığında Redis host adı SNI olarak otomatik kullanılır
+  REDIS_SSL_SNI_SERVER_NAME: ""
+  # Test ortamlarında self-signed/dahili CA sertifikası için peer doğrulamayı atlama
+  REDIS_SSL_DISABLE_PEER_VERIFY: "true"
+
+  # ============================================================================
+  # Lettuce Client & Havuz (Pool) Yönetimi
+  # ============================================================================
+  REDIS_POOL_ENABLED: "true"
+  REDIS_RECONNECT_DELAY_MAX: "30s"
+
+  # ============================================================================
+  # Spring Boot & JVM Konfigürasyonları
+  # ============================================================================
+  SERVER_PORT: "8080"
+  JAVA_TOOL_OPTIONS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"

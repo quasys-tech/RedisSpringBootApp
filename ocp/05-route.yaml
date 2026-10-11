@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: redis-demo-route
+  labels:
+    app: redis-demo
+    app.kubernetes.io/name: redis-demo
+    app.kubernetes.io/part-of: redis-enterprise-demo
+spec:
+  to:
+    kind: Service
+    name: redis-demo-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
