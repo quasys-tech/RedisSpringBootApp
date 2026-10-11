@@ -1,0 +1,87 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: redis-demo
+
+  # Jackson JSON Pretty Print (Okunaklı/Beauty JSON formatı)
+  jackson:
+    serialization:
+      indent_output: true
+
+  # Spring Cache configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000 # Default TTL: 10 minutes in milliseconds
+      cache-null-values: false # Best Practice: do not cache nulls unless specifically desired
+      key-prefix: "redis-demo::"
+      use-key-prefix: true
+
+  # Unified Redis configuration (Single place, no duplicate blocks)
+  data:
+    redis:
+      # Bağlantı ve Kimlik Doğrulama Bilgileri
+      host: ${REDIS_HOST:cachedb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}
+      port: ${REDIS_PORT:40743}
+      username: ${REDIS_USERNAME:default}
+      password: ${REDIS_PASSWORD:vOFCeFcI}
+      database: ${REDIS_DATABASE:0} # Cluster & Proxy uyumlu (Her zaman 0)
+      timeout: 5000ms # Komut timeout süresi
+      connect-timeout: 5000ms # Bağlantı kurma timeout süresi
+
+      # TLS/SSL ve SNI (Server Name Indication) Ayarları
+      # OpenShift route'u üzerinden bağlantı kurulduğu için TLS, SNI ve dahili CA sertifika ayarları aktiftir.
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true} # TLS aktif (OpenShift router için zorunlu)
+        use-sni: ${REDIS_SSL_USE_SNI:true} # SNI (Server Name Indication) gönderimi
+        sni-server-name: ${REDIS_SSL_SNI_SERVER_NAME:} # Boş bırakılırsa otomatik olarak host adını kullanır
+        disable-peer-verification: ${REDIS_SSL_DISABLE_PEER_VERIFY:true} # Test ortamlarındaki self-signed/dahili OCP CA için doğrulama atlama
+
+      # Lettuce Bağlantı Havuzu (Pool) - Configurable (true/false)
+      lettuce:
+        shutdown-timeout: 2000ms
+        pool:
+          enabled: ${REDIS_POOL_ENABLED:true} # true: Commons Pool 2 havuzu, false: Lettuce varsayılan multiplexing tek bağlantı
+          max-active: 16       # Maksimum aktif bağlantı
+          max-idle: 8         # Havuzda tutulacak maksimum boşta bağlantı
+          min-idle: 2         # Havuzda tutulacak minimum boşta bağlantı
+          max-wait: 3000ms    # Havuzdan bağlantı alma için maksimum bekleme süresi
+          time-between-eviction-runs: 30000ms
+
+      # Cluster Ayarı
+      cluster:
+        enabled: ${REDIS_CLUSTER_MODE:false} # OSS Cluster API aktifse true, tek endpoint (proxy) ise false
+
+      # Socket / TCP Tuning
+      socket:
+        keep-alive: true      # Ağ donanımları / Ingress router'ların bağlantıyı koparmasını önler
+        tcp-no-delay: true    # Düşük gecikme süresi (Nagle algoritması kapalı)
+        connect-timeout: 5000ms
+
+      # Otomatik Yeniden Bağlanma ve Canlılık Doğrulama
+      auto-reconnect: true
+      ping-before-activate: true
+      # Yeniden Bağlanma Aralığı Tavanı (Reconnect Backoff Max Delay)
+      # Redis kapandığında arka plandaki denemelerin ulaşacağı maksimum bekleme tavanı
+      reconnect-delay-max: ${REDIS_RECONNECT_DELAY_MAX:30s}
+
+      # Topoloji Yenileme (Cluster modu açık olduğunda kullanılır)
+      topology-refresh:
+        adaptive-refresh-enabled: true
+        periodic-refresh-interval: 30s
+        dynamic-refresh-sources: true
+
+      # Cache Bazlı Özel TTL Süreleri (saniye cinsinden)
+      cache-ttls:
+        items: 300      # 5 dakika
+        users: 600      # 10 dakika
+        reports: 3600   # 1 saat
+
+logging:
+  level:
+    root: INFO
+    com.quasys.redis: DEBUG
+    io.lettuce.core: INFO
+    org.springframework.data.redis: INFO
