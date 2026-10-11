@@ -95,6 +95,27 @@ Uygulama varsayılan olarak `8080` portunda ayağa kalkar.
 | `REDIS_SSL_USE_SNI` | TLS el sıkışmasında SNI (Server Name Indication) gönderimi | `true` |
 | `REDIS_SSL_DISABLE_PEER_VERIFY` | Self-signed veya OCP dahili CA sertifikalarını kabul etme | `true` |
 | `REDIS_CLUSTER_MODE` | OSS Cluster API aktif ise `true` yapılır | `false` |
+| `REDIS_RECONNECT_DELAY_MAX` | Redis koptuğunda denemeler arasındaki maksimum bekleme tavanı | `30s` |
+
+---
+
+## ⏱️ Zaman Aşımı, TTL ve Süre Parametreleri Özeti
+
+Uygulamada yapılandırılmış tüm zaman aşımı ve periyot ayarları:
+
+| Parametre | Süre | Görevi ve Best Practice Amacı |
+|---|---|---|
+| `cache.redis.time-to-live` | `600000ms` (10 dk) | **Varsayılan Cache Ömrü**: Verilerin bellekte sonsuza dek kalmasını ve bellek şişmesini (OOM) önler. |
+| `cache-ttls.items` | `300s` (5 dk) | Ürün/Item verileri için özel TTL süresi. |
+| `cache-ttls.users` | `600s` (10 dk) | Kullanıcı verileri için özel TTL süresi. |
+| `cache-ttls.reports` | `3600s` (1 saat) | Rapor ve analitik veriler için uzun ömürlü TTL süresi. |
+| `data.redis.timeout` | `5000ms` (5 sn) | **Komut Yanıt Timeout'u**: Yanıt gelmediğinde thread kilitlenmesini (Thread Starvation) önler. |
+| `data.redis.connect-timeout` | `5000ms` (5 sn) | **TCP/TLS Bağlantı Timeout'u**: İlk el sıkışma için maksimum bekleme süresi. |
+| `lettuce.shutdown-timeout` | `2000ms` (2 sn) | **Graceful Shutdown**: Uygulama kapanırken hatta devam eden isteklerin bitmesini bekleme süresi. |
+| `pool.max-wait` | `3000ms` (3 sn) | **Havuz Bekleme Süresi**: Tüm bağlantılar doluysa boşta bağlantı bekleme üst sınırı. |
+| `pool.time-between-eviction-runs` | `30000ms` (30 sn) | **Havuz Temizleme Periyodu**: Atıl ve bayat bağlantıları kontrol edip temizleme sıklığı. |
+| `reconnect-delay-max` | `30s` | **Yeniden Bağlanma Tavanı**: Redis koptuğunda arka plan denemeleri arasındaki maksimum bekleme tavanı. |
+| `topology-refresh.periodic-refresh-interval` | `30s` | **Cluster Topoloji Yenileme**: OSS Cluster modunda küme haritasını periyodik güncelleme sıklığı. |
 
 ---
 
