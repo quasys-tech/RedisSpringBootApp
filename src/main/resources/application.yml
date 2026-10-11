@@ -16,7 +16,6 @@ spring:
     redis:
       time-to-live: 600000 # Default TTL: 10 minutes in milliseconds
       cache-null-values: false # Best Practice: do not cache nulls unless specifically desired
-      key-prefix: "redis-demo::"
       use-key-prefix: true
 
   # Unified Redis configuration (Single place, no duplicate blocks)

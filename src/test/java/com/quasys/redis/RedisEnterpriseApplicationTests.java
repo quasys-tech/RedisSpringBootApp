@@ -22,4 +22,15 @@ class RedisEnterpriseApplicationTests {
             org.junit.jupiter.api.Assertions.assertEquals(16, redisProperties.getLettuce().getPool().getMaxActive());
         }
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.cache.RedisCacheManager cacheManager;
+
+    @Test
+    void testCacheKeyPrefix() {
+        org.springframework.data.redis.cache.RedisCache cache = (org.springframework.data.redis.cache.RedisCache) cacheManager.getCache("items");
+        org.junit.jupiter.api.Assertions.assertNotNull(cache);
+        org.springframework.data.redis.cache.RedisCacheConfiguration config = cache.getCacheConfiguration();
+        org.junit.jupiter.api.Assertions.assertEquals("items:", config.getKeyPrefixFor("items"));
+    }
 }

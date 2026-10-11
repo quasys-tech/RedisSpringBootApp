@@ -59,10 +59,11 @@ public class CacheConfiguration implements CachingConfigurer {
 
         GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
-        // Default Cache Configuration: 10 minutes TTL, JSON serialization, no nulls cached
+        // Default Cache Configuration: 10 minutes TTL, JSON serialization, no nulls cached, single colon separator (items:1 instead of items::1)
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
                 .disableCachingNullValues()
+                .computePrefixWith(cacheName -> cacheName + ":")
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
