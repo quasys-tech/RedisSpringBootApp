@@ -90,12 +90,36 @@ Uygulama varsayılan olarak `8080` portunda ayağa kalkar.
 | `REDIS_USERNAME` | Redis kullanıcısı (Redis ACL) | `default` |
 | `REDIS_PASSWORD` | Veritabanı şifresi | `vOFCeFcI` |
 | `REDIS_DATABASE` | Veritabanı indeksi (Enterprise için her zaman 0) | `0` |
+| `REDIS_KEY_PREFIX` | Redis Enterprise ACL Multi-Tenancy / Namespace ön eki | `quasys:` |
 | `REDIS_POOL_ENABLED` | Bağlantı havuzu (Pooling) aktif/pasif | `true` |
 | `REDIS_SSL_ENABLED` | TLS/SSL bağlantısı (OpenShift route için varsayılan true) | `true` |
 | `REDIS_SSL_USE_SNI` | TLS el sıkışmasında SNI (Server Name Indication) gönderimi | `true` |
 | `REDIS_SSL_DISABLE_PEER_VERIFY` | Self-signed veya OCP dahili CA sertifikalarını kabul etme | `true` |
 | `REDIS_CLUSTER_MODE` | OSS Cluster API aktif ise `true` yapılır | `false` |
 | `REDIS_RECONNECT_DELAY_MAX` | Redis koptuğunda denemeler arasındaki maksimum bekleme tavanı | `30s` |
+
+---
+
+## 🛡️ Redis Enterprise ACL & Multi-Tenancy (Key Prefix) Desteği
+
+Redis Enterprise üzerinde tek bir veritabanını birden fazla takım veya mikroservis paylaştığında, **Redis 6+ ACL (Access Control Lists)** kuralları ile her kullanıcıya yalnızca kendi ön ekiyle başlayan anahtarlara erişim izni tanımlanır:
+
+```text
+user team_alpha on >password ~team_alpha:* +@all
+user team_beta  on >password ~team_beta:*  +@all
+```
+
+Bu projede geliştirilen şeffaf **Key Prefixing** mekanizması sayesinde:
+1. **Spring Cache Abstraction (`@Cacheable`, `@CachePut`, `@CacheEvict`)**:
+   * Ön ek `quasys:` olarak ayarlandığında `items` cache'i için üretilen anahtar formatı:  
+     `quasys:items:1`, `quasys:items:2` olur.
+   * Çift iki nokta (`::`) ortadan kaldırılarak RedisInsight ve GUI araçlarında boş klasör oluşması engellenmiştir (`quasys` $\rightarrow$ `items` $\rightarrow$ `1`).
+2. **`RedisTemplate` Doğrudan İşlemleri**:
+   * Özel `PrefixStringRedisSerializer` ile `redisTemplate.opsForValue().set("mykey", ...)` çağrıldığında arka planda `quasys:mykey` yazılır.
+   * Okuma yapılırken ön ek otomatik olarak şeffaf biçimde soyulur.
+3. **Konfigürasyon**:
+   * `REDIS_KEY_PREFIX=""` verilirse ön ek devre dışı kalır ve standart anahtar yapısına dönülür.
+   * `REDIS_KEY_PREFIX="myteam"` (iki nokta konulmasa dahi) otomatik olarak `myteam:` şeklinde normalize edilir.
 
 ---
 
@@ -124,8 +148,9 @@ Uygulamada yapılandırılmış tüm zaman aşımı ve periyot ayarları:
 | Metot | Endpoint | Açıklama |
 |---|---|---|
 | `GET` | `/api/health` | Redis bağlantısını `PING` atarak test eder |
-| `GET` | `/api/info` | Aktif Lettuce, Pooling (`poolingEnabled`), TLS/SNI ve DB parametrelerini döner |
+| `GET` | `/api/info` | Aktif Lettuce, Pooling (`poolingEnabled`), Key Prefix, TLS/SNI ve DB parametrelerini döner |
 | `GET` | `/api/items/{id}` | `@Cacheable` testi (İlk çağrı ~1 sn simüle DB, sonrakiler sub-ms Redis cache) |
 | `PUT` | `/api/items/{id}` | `@CachePut` testi (DB ve cache güncelleme) |
 | `DELETE` | `/api/items/{id}` | `@CacheEvict` testi (DB ve cache kaydını silme) |
 | `POST` | `/api/items/pipeline-demo?count=50` | `executePipelined` toplu yazma testi |
+| `POST` | `/api/pool/test-concurrency?threads=20&totalRequests=100` | Havuz üzerinden çoklu iş parçacıklı (multi-threaded) eşzamanlı yük testi |

@@ -83,6 +83,7 @@ public class RedisDemoController {
         connectionInfo.put("port", redisProperties.getPort());
         connectionInfo.put("username", redisProperties.getUsername());
         connectionInfo.put("databaseIndex", redisProperties.getDatabase());
+        connectionInfo.put("keyPrefix", properties.getNormalizedKeyPrefix());
         connectionInfo.put("timeout", redisProperties.getTimeout());
         info.put("connection", connectionInfo);
 

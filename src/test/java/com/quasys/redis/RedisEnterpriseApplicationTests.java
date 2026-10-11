@@ -26,11 +26,35 @@ class RedisEnterpriseApplicationTests {
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.data.redis.cache.RedisCacheManager cacheManager;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
+
     @Test
     void testCacheKeyPrefix() {
         org.springframework.data.redis.cache.RedisCache cache = (org.springframework.data.redis.cache.RedisCache) cacheManager.getCache("items");
         org.junit.jupiter.api.Assertions.assertNotNull(cache);
         org.springframework.data.redis.cache.RedisCacheConfiguration config = cache.getCacheConfiguration();
-        org.junit.jupiter.api.Assertions.assertEquals("items:", config.getKeyPrefixFor("items"));
+        org.junit.jupiter.api.Assertions.assertEquals("quasys:items:", config.getKeyPrefixFor("items"));
+    }
+
+    @Test
+    void testRedisTemplateKeyPrefix() {
+        @SuppressWarnings("unchecked")
+        org.springframework.data.redis.serializer.RedisSerializer<String> keySerializer = 
+                (org.springframework.data.redis.serializer.RedisSerializer<String>) redisTemplate.getKeySerializer();
+        org.junit.jupiter.api.Assertions.assertNotNull(keySerializer);
+
+        // Serialization should add prefix
+        byte[] serialized = keySerializer.serialize("myKey");
+        String inRedis = new String(serialized, java.nio.charset.StandardCharsets.UTF_8);
+        org.junit.jupiter.api.Assertions.assertEquals("quasys:myKey", inRedis);
+
+        // Idempotency: if string already starts with prefix, do not duplicate
+        byte[] alreadyPrefixed = keySerializer.serialize("quasys:myKey");
+        org.junit.jupiter.api.Assertions.assertEquals("quasys:myKey", new String(alreadyPrefixed, java.nio.charset.StandardCharsets.UTF_8));
+
+        // Deserialization should transparently strip prefix
+        String deserialized = keySerializer.deserialize(serialized);
+        org.junit.jupiter.api.Assertions.assertEquals("myKey", deserialized);
     }
 }

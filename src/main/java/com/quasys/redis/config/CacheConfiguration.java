@@ -59,11 +59,14 @@ public class CacheConfiguration implements CachingConfigurer {
 
         GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
-        // Default Cache Configuration: 10 minutes TTL, JSON serialization, no nulls cached, single colon separator (items:1 instead of items::1)
+        String keyPrefix = properties.getNormalizedKeyPrefix();
+        log.info("Configuring Redis cache with global key prefix: '{}'", keyPrefix);
+
+        // Default Cache Configuration: 10 minutes TTL, JSON serialization, no nulls cached, ACL prefix + clean folder hierarchy
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
                 .disableCachingNullValues()
-                .computePrefixWith(cacheName -> cacheName + ":")
+                .computePrefixWith(cacheName -> keyPrefix + cacheName + ":")
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 

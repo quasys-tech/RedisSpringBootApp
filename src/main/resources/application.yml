@@ -30,6 +30,11 @@ spring:
       timeout: 5000ms # Komut timeout süresi
       connect-timeout: 5000ms # Bağlantı kurma timeout süresi
 
+      # Key Prefix (Redis Enterprise ACL Multi-Tenancy & Namespace Desteği)
+      # Tek bir database'i birden fazla ekibin ACL kısıtlamalarıyla (~prefix:*) güvenli paylaşmasını sağlar.
+      # Boş bırakılırsa ("") prefix uygulanmaz.
+      key-prefix: ${REDIS_KEY_PREFIX:quasys:}
+
       # TLS/SSL ve SNI (Server Name Indication) Ayarları
       # OpenShift route'u üzerinden bağlantı kurulduğu için TLS, SNI ve dahili CA sertifika ayarları aktiftir.
       ssl:

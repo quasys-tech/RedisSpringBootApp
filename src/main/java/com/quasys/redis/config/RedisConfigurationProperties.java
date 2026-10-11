@@ -55,12 +55,37 @@ public class RedisConfigurationProperties {
      */
     private Map<String, Long> cacheTtls = new HashMap<>();
 
+    /**
+     * Configurable key prefix for Redis Enterprise ACL multi-tenancy (~prefix:*).
+     * If configured, all cache and RedisTemplate keys are prefixed with this namespace.
+     */
+    private String keyPrefix = "quasys:";
+
     public Duration getReconnectDelayMax() {
         return reconnectDelayMax;
     }
 
     public void setReconnectDelayMax(Duration reconnectDelayMax) {
         this.reconnectDelayMax = reconnectDelayMax;
+    }
+
+    public String getKeyPrefix() {
+        return keyPrefix;
+    }
+
+    public void setKeyPrefix(String keyPrefix) {
+        this.keyPrefix = keyPrefix;
+    }
+
+    /**
+     * Returns the normalized key prefix.
+     * Ensures trailing ':' if a non-empty prefix is provided.
+     */
+    public String getNormalizedKeyPrefix() {
+        if (!org.springframework.util.StringUtils.hasText(keyPrefix)) {
+            return "";
+        }
+        return keyPrefix.endsWith(":") ? keyPrefix : keyPrefix + ":";
     }
 
     public ClusterProperties getCluster() {

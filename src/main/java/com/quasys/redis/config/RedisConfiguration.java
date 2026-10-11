@@ -190,11 +190,14 @@ public class RedisConfiguration {
         );
 
         GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        PrefixStringRedisSerializer prefixKeySerializer = new PrefixStringRedisSerializer(properties.getNormalizedKeyPrefix());
+        StringRedisSerializer standardStringSerializer = new StringRedisSerializer();
 
-        // Key serializers
-        template.setKeySerializer(stringSerializer);
-        template.setHashKeySerializer(stringSerializer);
+        // Key serializers (transparent prefix applied for Redis Enterprise ACL multi-tenancy)
+        template.setKeySerializer(prefixKeySerializer);
+        template.setStringSerializer(prefixKeySerializer);
+        // Hash key fields do not use prefix (standard Redis convention)
+        template.setHashKeySerializer(standardStringSerializer);
 
         // Value serializers
         template.setValueSerializer(jsonSerializer);
