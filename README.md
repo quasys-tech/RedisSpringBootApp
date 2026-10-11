@@ -155,3 +155,4 @@ Uygulamada yapılandırılmış tüm zaman aşımı ve periyot ayarları:
 | `DELETE` | `/api/items/{id}` | `@CacheEvict` testi (DB ve cache kaydını silme) |
 | `POST` | `/api/items/pipeline-demo?count=50` | `executePipelined` toplu yazma testi |
 | `POST` | `/api/pool/test-concurrency?threads=20&totalRequests=100` | Havuz üzerinden çoklu iş parçacıklı (multi-threaded) eşzamanlı yük testi |
+| `GET` | `/api/cluster/topology` | Canlı Redis OSS Cluster topolojisini (Shard'lar, IP/Port'lar, Master/Replica ve Hash Slot aralıkları) inceler |

@@ -22,10 +22,10 @@ spring:
   data:
     redis:
       # Bağlantı ve Kimlik Doğrulama Bilgileri
-      host: ${REDIS_HOST:cachedb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}
+      host: ${REDIS_HOST:ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}
       port: ${REDIS_PORT:40743}
       username: ${REDIS_USERNAME:quasysuser}
-      password: ${REDIS_PASSWORD:Shield2617}
+      password: ${REDIS_PASSWORD:Shield2617!}
       database: ${REDIS_DATABASE:0} # Cluster & Proxy uyumlu (Her zaman 0)
       timeout: 5000ms # Komut timeout süresi
       connect-timeout: 5000ms # Bağlantı kurma timeout süresi
@@ -33,7 +33,7 @@ spring:
       # Key Prefix (Redis Enterprise ACL Multi-Tenancy & Namespace Desteği)
       # Tek bir database'i birden fazla ekibin ACL kısıtlamalarıyla (~prefix:*) güvenli paylaşmasını sağlar.
       # Boş bırakılırsa ("") prefix uygulanmaz.
-      key-prefix: ${REDIS_KEY_PREFIX:shi:}
+      key-prefix: ${REDIS_KEY_PREFIX:quasys:}
 
       # Redis Protokol Sürümü (RESP2 veya RESP3)
       # ACL kısıtlı kullanıcılarda Lettuce'ın 'CLIENT SETINFO' komutu gönderip NOPERM hatası almasını önlemek için RESP2 önerilir.
@@ -58,9 +58,14 @@ spring:
           max-wait: 3000ms    # Havuzdan bağlantı alma için maksimum bekleme süresi
           time-between-eviction-runs: 30000ms
 
-      # Cluster Ayarı
-      cluster:
-        enabled: ${REDIS_CLUSTER_MODE:false} # OSS Cluster API aktifse true, tek endpoint (proxy) ise false
+      # Cluster Ayarı (OSS Cluster API)
+      # ÖNEMLİ: Lokal makineden (OpenShift dışından) bağlanırken Redis Enterprise DMC Proxy kullanılır (cluster kapalı).
+      # Çünkü Cluster modu açıldığında Redis sunucusu içerideki özel Pod IP'sini (10.131.4.91:12021) döner ve lokalden bu IP'ye erişilemez (Timeout).
+      # Uygulama OpenShift içine deploy edildiğinde ise Pod IP'lerine erişebildiği için aşağıdaki blok aktif edilir:
+      # cluster:
+      #   nodes:
+      #     - ${REDIS_HOST:ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}:${REDIS_PORT:40743}
+      #   max-redirects: 5
 
       # Socket / TCP Tuning
       socket:
@@ -92,4 +97,5 @@ logging:
     root: INFO
     com.quasys.redis: DEBUG
     io.lettuce.core: INFO
+    io.lettuce.core.cluster: DEBUG
     org.springframework.data.redis: INFO

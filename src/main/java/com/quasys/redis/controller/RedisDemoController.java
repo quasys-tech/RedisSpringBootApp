@@ -241,4 +241,69 @@ public class RedisDemoController {
         response.put("message", "Concurrent pool load test completed successfully.");
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Inspects the Redis Cluster topology (Nodes, roles, addresses, and served slot ranges).
+     */
+    @GetMapping("/cluster/topology")
+    public ResponseEntity<Map<String, Object>> getClusterTopology() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("clusterModeConfigured", properties.getCluster().isEnabled());
+
+        try {
+            org.springframework.data.redis.connection.RedisConnectionFactory factory = redisTemplate.getConnectionFactory();
+            if (factory instanceof org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory lettuceFactory) {
+                response.put("isClusterAware", lettuceFactory.isClusterAware());
+            }
+
+            // Execute CLUSTER NODES via connection
+            byte[] rawNodes = redisTemplate.execute((RedisConnection conn) -> {
+                return (byte[]) conn.execute("CLUSTER", "NODES".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            });
+
+            if (rawNodes != null) {
+                String nodesOutput = new String(rawNodes, java.nio.charset.StandardCharsets.UTF_8);
+                List<Map<String, Object>> parsedNodes = new ArrayList<>();
+                for (String line : nodesOutput.split("\n")) {
+                    line = line.trim();
+                    if (line.isEmpty()) continue;
+                    String[] parts = line.split(" ");
+                    if (parts.length >= 8) {
+                        Map<String, Object> node = new LinkedHashMap<>();
+                        node.put("nodeId", parts[0]);
+                        node.put("address", parts[1]);
+                        node.put("flags", parts[2]); // e.g. "myself,master", "slave"
+                        node.put("masterId", "-".equals(parts[3]) ? null : parts[3]);
+                        node.put("pingSent", parts[4]);
+                        node.put("pongRecv", parts[5]);
+                        node.put("configEpoch", parts[6]);
+                        node.put("linkState", parts[7]);
+                        if (parts.length > 8) {
+                            List<String> slots = new ArrayList<>();
+                            for (int i = 8; i < parts.length; i++) {
+                                slots.add(parts[i]);
+                            }
+                            node.put("servedSlots", slots);
+                        }
+                        parsedNodes.add(node);
+                    }
+                }
+                response.put("nodesCount", parsedNodes.size());
+                response.put("nodes", parsedNodes);
+                response.put("rawOutput", nodesOutput);
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("message", "CLUSTER NODES command returned null.");
+                return ResponseEntity.ok(response);
+            }
+        } catch (Exception ex) {
+            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(ex);
+            String rootMsg = rootCause != null ? rootCause.getMessage() : ex.getMessage();
+            response.put("status", "UNAVAILABLE");
+            response.put("error", ex.getMessage());
+            response.put("rootCause", rootMsg);
+            response.put("hint", "If rootCause mentions NOPERM, grant '+cluster' or '+cluster|nodes' permission to your Redis ACL user.");
+            return ResponseEntity.status(503).body(response);
+        }
+    }
 }
