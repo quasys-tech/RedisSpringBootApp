@@ -87,32 +87,55 @@ public class CacheConfiguration implements CachingConfigurer {
      * Best practice for High Availability: Graceful degradation CacheErrorHandler.
      * If Redis is temporarily unavailable or undergoes a failover, application operations
      * will fall back gracefully to the underlying database / service logic rather than failing.
+     * Extracts and logs the root cause from Redis (e.g., NOPERM ACL violations, timeouts)
+     * so developers can immediately diagnose issues.
      */
     @Override
     public CacheErrorHandler errorHandler() {
         return new CacheErrorHandler() {
             @Override
             public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
-                log.warn("Redis Cache GET error on cache '{}' for key '{}': {}. Falling back to source.",
-                        cache.getName(), key, exception.getMessage());
+                String rootCause = extractRootCauseMessage(exception);
+                log.warn("Redis Cache GET error on cache '{}' for key '{}': {}. Root cause: '{}'. Falling back to source.",
+                        cache.getName(), key, exception.getMessage(), rootCause);
+                if (log.isDebugEnabled()) {
+                    log.debug("Redis Cache GET exception details:", exception);
+                }
             }
 
             @Override
             public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
-                log.warn("Redis Cache PUT error on cache '{}' for key '{}': {}. Continuing execution.",
-                        cache.getName(), key, exception.getMessage());
+                String rootCause = extractRootCauseMessage(exception);
+                log.warn("Redis Cache PUT error on cache '{}' for key '{}': {}. Root cause: '{}'. Continuing execution.",
+                        cache.getName(), key, exception.getMessage(), rootCause);
+                if (log.isDebugEnabled()) {
+                    log.debug("Redis Cache PUT exception details:", exception);
+                }
             }
 
             @Override
             public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
-                log.warn("Redis Cache EVICT error on cache '{}' for key '{}': {}. Continuing execution.",
-                        cache.getName(), key, exception.getMessage());
+                String rootCause = extractRootCauseMessage(exception);
+                log.warn("Redis Cache EVICT error on cache '{}' for key '{}': {}. Root cause: '{}'. Continuing execution.",
+                        cache.getName(), key, exception.getMessage(), rootCause);
+                if (log.isDebugEnabled()) {
+                    log.debug("Redis Cache EVICT exception details:", exception);
+                }
             }
 
             @Override
             public void handleCacheClearError(RuntimeException exception, Cache cache) {
-                log.warn("Redis Cache CLEAR error on cache '{}': {}. Continuing execution.",
-                        cache.getName(), exception.getMessage());
+                String rootCause = extractRootCauseMessage(exception);
+                log.warn("Redis Cache CLEAR error on cache '{}': {}. Root cause: '{}'. Continuing execution.",
+                        cache.getName(), exception.getMessage(), rootCause);
+                if (log.isDebugEnabled()) {
+                    log.debug("Redis Cache CLEAR exception details:", exception);
+                }
+            }
+
+            private String extractRootCauseMessage(Throwable throwable) {
+                Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(throwable);
+                return rootCause != null ? rootCause.getMessage() : throwable.getMessage();
             }
         };
     }

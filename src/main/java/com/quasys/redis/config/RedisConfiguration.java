@@ -132,6 +132,12 @@ public class RedisConfiguration {
                 sslOptions = sslOptionsBuilder.build();
             }
 
+            io.lettuce.core.protocol.ProtocolVersion protocolVersion =
+                    "RESP3".equalsIgnoreCase(properties.getProtocol())
+                            ? io.lettuce.core.protocol.ProtocolVersion.RESP3
+                            : io.lettuce.core.protocol.ProtocolVersion.RESP2;
+            log.info("Configuring Lettuce protocol version: {}", protocolVersion);
+
             if (properties.getCluster().isEnabled()) {
                 log.info("Cluster mode is enabled. Applying ClusterTopologyRefreshOptions.");
                 ClusterTopologyRefreshOptions topologyRefreshOptions = ClusterTopologyRefreshOptions.builder()
@@ -141,6 +147,7 @@ public class RedisConfiguration {
                         .build();
 
                 ClusterClientOptions.Builder clusterClientOptionsBuilder = ClusterClientOptions.builder()
+                        .protocolVersion(protocolVersion)
                         .socketOptions(socketOptions)
                         .autoReconnect(properties.isAutoReconnect())
                         .pingBeforeActivateConnection(properties.isPingBeforeActivate())
@@ -154,6 +161,7 @@ public class RedisConfiguration {
             } else {
                 log.info("Single endpoint / Standalone proxy mode is configured.");
                 ClientOptions.Builder clientOptionsBuilder = ClientOptions.builder()
+                        .protocolVersion(protocolVersion)
                         .socketOptions(socketOptions)
                         .autoReconnect(properties.isAutoReconnect())
                         .pingBeforeActivateConnection(properties.isPingBeforeActivate());

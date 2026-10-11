@@ -60,11 +60,14 @@ public class RedisDemoController {
             return ResponseEntity.ok(response);
         } catch (Exception ex) {
             long elapsed = System.currentTimeMillis() - start;
-            log.error("Failed to ping Redis: {}", ex.getMessage());
+            Throwable rootCause = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(ex);
+            String rootCauseMessage = rootCause != null ? rootCause.getMessage() : ex.getMessage();
+            log.error("Failed to ping Redis: {}. Root cause: {}", ex.getMessage(), rootCauseMessage);
             response.put("status", "DOWN");
             response.put("latencyMs", elapsed);
             response.put("timestamp", LocalDateTime.now());
             response.put("error", ex.getMessage());
+            response.put("rootCause", rootCauseMessage);
             response.put("message", "Could not connect to Redis. Please verify host, port, credentials, and SSL settings.");
             return ResponseEntity.status(503).body(response);
         }
@@ -106,6 +109,7 @@ public class RedisDemoController {
             }
         }
         clientInfo.put("clusterMode", properties.getCluster().isEnabled());
+        clientInfo.put("protocol", properties.getProtocol());
         clientInfo.put("autoReconnect", properties.isAutoReconnect());
         clientInfo.put("pingBeforeActivate", properties.isPingBeforeActivate());
         clientInfo.put("reconnectDelayMax", properties.getReconnectDelayMax());

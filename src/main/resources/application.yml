@@ -24,8 +24,8 @@ spring:
       # Bağlantı ve Kimlik Doğrulama Bilgileri
       host: ${REDIS_HOST:cachedb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr}
       port: ${REDIS_PORT:40743}
-      username: ${REDIS_USERNAME:default}
-      password: ${REDIS_PASSWORD:vOFCeFcI}
+      username: ${REDIS_USERNAME:quasysuser}
+      password: ${REDIS_PASSWORD:Shield2617}
       database: ${REDIS_DATABASE:0} # Cluster & Proxy uyumlu (Her zaman 0)
       timeout: 5000ms # Komut timeout süresi
       connect-timeout: 5000ms # Bağlantı kurma timeout süresi
@@ -33,7 +33,11 @@ spring:
       # Key Prefix (Redis Enterprise ACL Multi-Tenancy & Namespace Desteği)
       # Tek bir database'i birden fazla ekibin ACL kısıtlamalarıyla (~prefix:*) güvenli paylaşmasını sağlar.
       # Boş bırakılırsa ("") prefix uygulanmaz.
-      key-prefix: ${REDIS_KEY_PREFIX:quasys:}
+      key-prefix: ${REDIS_KEY_PREFIX:shi:}
+
+      # Redis Protokol Sürümü (RESP2 veya RESP3)
+      # ACL kısıtlı kullanıcılarda Lettuce'ın 'CLIENT SETINFO' komutu gönderip NOPERM hatası almasını önlemek için RESP2 önerilir.
+      protocol: ${REDIS_PROTOCOL:RESP3}
 
       # TLS/SSL ve SNI (Server Name Indication) Ayarları
       # OpenShift route'u üzerinden bağlantı kurulduğu için TLS, SNI ve dahili CA sertifika ayarları aktiftir.

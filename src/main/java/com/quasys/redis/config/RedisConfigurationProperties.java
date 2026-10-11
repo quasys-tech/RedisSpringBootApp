@@ -61,8 +61,22 @@ public class RedisConfigurationProperties {
      */
     private String keyPrefix = "quasys:";
 
+    /**
+     * Redis protocol version ("RESP2" or "RESP3").
+     * Defaults to "RESP2" to prevent 'CLIENT SETINFO' NOPERM failures on ACL-restricted accounts.
+     */
+    private String protocol = "RESP2";
+
     public Duration getReconnectDelayMax() {
         return reconnectDelayMax;
+    }
+
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public void setProtocol(String protocol) {
+        this.protocol = protocol;
     }
 
     public void setReconnectDelayMax(Duration reconnectDelayMax) {

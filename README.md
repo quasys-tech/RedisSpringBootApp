@@ -91,6 +91,7 @@ Uygulama varsayılan olarak `8080` portunda ayağa kalkar.
 | `REDIS_PASSWORD` | Veritabanı şifresi | `vOFCeFcI` |
 | `REDIS_DATABASE` | Veritabanı indeksi (Enterprise için her zaman 0) | `0` |
 | `REDIS_KEY_PREFIX` | Redis Enterprise ACL Multi-Tenancy / Namespace ön eki | `quasys:` |
+| `REDIS_PROTOCOL` | Redis protokol sürümü (`RESP2` veya `RESP3`, ACL için RESP2 önerilir) | `RESP2` |
 | `REDIS_POOL_ENABLED` | Bağlantı havuzu (Pooling) aktif/pasif | `true` |
 | `REDIS_SSL_ENABLED` | TLS/SSL bağlantısı (OpenShift route için varsayılan true) | `true` |
 | `REDIS_SSL_USE_SNI` | TLS el sıkışmasında SNI (Server Name Indication) gönderimi | `true` |
