@@ -96,7 +96,7 @@ Uygulama varsayılan olarak `8080` portunda ayağa kalkar.
 | `REDIS_SSL_ENABLED` | TLS/SSL bağlantısı (OpenShift route için varsayılan true) | `true` |
 | `REDIS_SSL_USE_SNI` | TLS el sıkışmasında SNI (Server Name Indication) gönderimi | `true` |
 | `REDIS_SSL_DISABLE_PEER_VERIFY` | Self-signed veya OCP dahili CA sertifikalarını kabul etme | `true` |
-| `REDIS_CLUSTER_MODE` | OSS Cluster API aktif ise `true` yapılır | `false` |
+| `REDIS_CLUSTER_NODES` | OSS Cluster API düğüm listesi (OpenShift içi için örn: host:port, dışarıdan erişim için boş bırakılır) | Boş (Proxy modu) |
 | `REDIS_RECONNECT_DELAY_MAX` | Redis koptuğunda denemeler arasındaki maksimum bekleme tavanı | `30s` |
 
 ---
@@ -156,3 +156,290 @@ Uygulamada yapılandırılmış tüm zaman aşımı ve periyot ayarları:
 | `POST` | `/api/items/pipeline-demo?count=50` | `executePipelined` toplu yazma testi |
 | `POST` | `/api/pool/test-concurrency?threads=20&totalRequests=100` | Havuz üzerinden çoklu iş parçacıklı (multi-threaded) eşzamanlı yük testi |
 | `GET` | `/api/cluster/topology` | Canlı Redis OSS Cluster topolojisini (Shard'lar, IP/Port'lar, Master/Replica ve Hash Slot aralıkları) inceler |
+
+---
+
+## 📖 Uygulamanın Çalışma Mantığı ve Endpoint Rehberi (Developer Guide)
+
+Bu bölüm, projeyi inceleyen veya üzerinde geliştirme yapacak mühendislerin uygulamanın iç mimarisini ve uç noktalarını (endpoints) kolayca anlaması için hazırlanmıştır.
+
+```
+                  ┌────────────────────────────────────────────────────────┐
+                  │                 Spring Boot Application                │
+                  │                                                        │
+                  │   [ RedisDemoController ]                              │
+                  │        │                │                              │
+                  │        ▼                ▼                              │
+                  │  [ ItemService ]   [ RedisTemplate ]                   │
+                  │   (@Cacheable)    (PrefixSerializer)                   │
+                  │        │                │                              │
+                  │        ▼                ▼                              │
+                  │   [ LettuceConnectionFactory ]                         │
+                  │        │ (Connection Pooling: max 16)                  │
+                  │        ▼                                               │
+                  │   [ Lettuce Driver (Netty I/O) ]                       │
+                  └────────┬───────────────────────────────────────────────┘
+                           │ TLS / SSL + SNI (Port 40743)
+                           ▼
+                  ┌────────────────────────────────────────────────────────┐
+                  │      OpenShift Router / Ingress (Public Host)          │
+                  │      ossdb-redis-ent-tst.apps.ocp-qua-test...          │
+                  └────────┬───────────────────────────────────────────────┘
+                           │ Tünel / Dahili Köprü
+                           ▼
+                  ┌────────────────────────────────────────────────────────┐
+                  │          Redis Enterprise DMC Proxy Pod                │
+                  │        (Kullanıcı: quasysuser, ACL: ~quasys:*)         │
+                  └────────┬───────────────────────────────────────────────┘
+                           │ Dahili Pod Yönlendirmesi
+                           ▼
+                  ┌────────────────────────────────────────────────────────┐
+                  │               Redis Shard Pod (Port 12021)             │
+                  │            [ quasys:items:1 ] [ quasys:items:2 ]       │
+                  └────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 1. Uygulama Nasıl Başlar ve Nasıl Çalışır?
+
+1. **Uygulama Başlangıcı (`RedisEnterpriseApplication`):**
+   * Spring Boot ayağa kalkarken `application.yml` dosyasındaki `spring.data.redis.*` bloğunu okur.
+   * [`RedisConfigurationProperties.java`](file:///Users/abdulmelikkalkan/Developer/Quasys/Redis/RedisApps/SpringBoot/src/main/java/com/quasys/redis/config/RedisConfigurationProperties.java) sınıfı tip-güvenli (type-safe) olarak bu değerleri bağlar.
+
+2. **Lettuce İstemcisi ve Soket Yapılandırması (`RedisConfiguration`):**
+   * Netty tabanlı düşük seviye TCP ayarları (`keepAlive: true`, `tcpNoDelay: true`, `connectTimeout: 5s`) devreye alınır.
+   * OpenShift Router'ı için zorunlu olan **TLS ve SNI (`SNIHostName`)** konfigüre edilir.
+   * ACL uyumluluğu için **RESP2 / RESP3** protokol anlaşması yapılır.
+   * Ağ kopmalarına karşı **Exponential Backoff (`reconnectDelay: 100ms - 30s`)** stratejisi yüklenir.
+
+3. **Bağlantı Havuzu (Connection Pooling):**
+   * `commons-pool2` devrede olduğu için Spring Boot arka planda önceden açılmış hazır soketlerden oluşan 16'lık bir havuz (`GenericObjectPool`) tahsis eder.
+
+4. **Multi-Tenancy & Key Prefixleme (`PrefixStringRedisSerializer`):**
+   * Redis Enterprise ACL kısıtlamasına (`~quasys:*`) tam uyum için tüm önbellek ve `RedisTemplate` komutlarına otomatik olarak `quasys:` ön eki takılır.
+
+5. **Graceful Degradation (`CacheErrorHandler`):**
+   * Eğer Redis geçici olarak kesilirse veya failover olursa, Spring Cache hataları loglar (`WARN`) ve uygulamanın çökmesini engelleyerek sorguyu sessizce veritabanına devreder (fallback).
+
+---
+
+### 2. Endpoint'lerin Detaylı İncelemesi ve Kullanımı
+
+---
+
+#### 🟢 1. Canlılık ve Sağlık Kontrolü: `GET /api/health`
+
+* **Amacı:** Redis Enterprise bağlantısının sağlıklı ve ayakta olduğunu doğrular.
+* **Nasıl Çalışır?** Redis'e hafif bir `PING` komutu gönderir, ağ gidiş-dönüş süresini (`latencyMs`) hesaplar. Eğer Redis koptuysa veya ACL/şifre hatası varsa HTTP 503 döner ve **gerçek kök nedeni (`rootCause`)** ekranda gösterir.
+
+**Örnek İstek:**
+```bash
+curl -s http://localhost:8080/api/health
+```
+
+**Başarılı Yanıt (HTTP 200):**
+```json
+{
+  "status": "UP",
+  "redisPing": "PONG",
+  "latencyMs": 18,
+  "timestamp": "2026-10-11T17:30:00",
+  "message": "Connected successfully to Redis Enterprise!"
+}
+```
+
+---
+
+#### ℹ️ 2. Çalışma Anı ve Konfigürasyon Teşhisi: `GET /api/info`
+
+* **Amacı:** Uygulamanın o an hangi Redis hostuna, hangi sürücüyle, hangi havuz limitleriyle ve hangi prefix ile bağlı olduğunu tek bir ekranda raporlar.
+
+**Örnek İstek:**
+```bash
+curl -s http://localhost:8080/api/info
+```
+
+**Başarılı Yanıt (HTTP 200):**
+```json
+{
+  "connection": {
+    "host": "ossdb-redis-ent-tst.apps.ocp-qua-test.quasys.com.tr",
+    "port": 40743,
+    "username": "quasysuser",
+    "databaseIndex": 0,
+    "keyPrefix": "quasys:",
+    "timeout": "PT5S"
+  },
+  "client": {
+    "driver": "Lettuce (Netty-based reactive driver)",
+    "poolingEnabled": true,
+    "shareNativeConnection": true,
+    "poolConfiguration": {
+      "maxActive": 16,
+      "maxIdle": 8,
+      "minIdle": 2,
+      "maxWait": "PT3S"
+    },
+    "protocol": "RESP3",
+    "autoReconnect": true
+  },
+  "socketTuning": {
+    "keepAlive": true,
+    "tcpNoDelay": true,
+    "connectTimeout": "PT5S"
+  },
+  "sslTls": {
+    "enabled": true,
+    "useSni": true,
+    "disablePeerVerification": true
+  },
+  "cacheTtlsSeconds": {
+    "items": 300,
+    "users": 600,
+    "reports": 3600
+  }
+}
+```
+
+---
+
+#### ⚡ 3. Cache-Aside Okuma Testi: `GET /api/items/{id}`
+
+* **Amacı:** Spring `@Cacheable` anotasyonunun çalışma mekanizmasını ve Redis önbellek performansını gösterir.
+* **Nasıl Çalışır?**
+  * **1. Çağrı (Cache Miss):** Veri Redis'te yoktur. `ItemService`, yapay olarak 1000 ms bekletilen yavaş veritabanı simülasyonuna gider. DB'den veriyi alır ve Redis'e `quasys:items:1` adıyla JSON olarak kaydeder.
+    * *Süre:* **~1020 ms** (Konsol logu: `[DB ACCESS] Fetching item 1 from database...`)
+  * **2. Çağrı (Cache Hit):** Veri artık Redis'tedir. DB metodu **hiç çalıştırılmaz**, veri doğrudan Redis RAM'inden döner.
+    * *Süre:* **< 5 ms!** (Konsol logunda DB erişimi görülmez).
+
+**Örnek İstek:**
+```bash
+# İlk çağrı (Cache Miss -> Yavaş)
+curl -s http://localhost:8080/api/items/1
+
+# İkinci çağrı (Cache Hit -> Anında)
+curl -s http://localhost:8080/api/items/1
+```
+
+**Dönen Yanıt (HTTP 200):**
+```json
+{
+  "id": "1",
+  "name": "Enterprise SSD",
+  "category": "Hardware",
+  "price": 299.99,
+  "createdAt": "2026-10-11T17:00:00"
+}
+```
+
+> **Redis'te Ne Oluşur?**  
+> RedisInsight'ta `quasys` $\rightarrow$ `items` $\rightarrow$ `1` şeklinde temiz bir hiyerarşide saklanır. Boş klasör (`::`) oluşmaz.
+
+---
+
+#### ✏️ 4. Cache Güncelleme Testi: `PUT /api/items/{id}`
+
+* **Amacı:** Spring `@CachePut` anotasyonunu test eder.
+* **Nasıl Çalışır?** Nesneyi veritabanında güncellerken aynı anda Redis önbelleğindeki kaydı da güncel veriyle ezer. Bir sonraki `GET` çağrısı anında güncel veriyi önbellekten okur.
+
+**Örnek İstek:**
+```bash
+curl -X PUT http://localhost:8080/api/items/1 \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Enterprise NVMe SSD Gen5", "category": "Hardware", "price": 499.99}'
+```
+
+---
+
+#### 🗑️ 5. Cache Temizleme Testi: `DELETE /api/items/{id}`
+
+* **Amacı:** Spring `@CacheEvict` anotasyonunu test eder.
+* **Nasıl Çalışır?** Kaydı veritabanından siler ve Redis'teki `quasys:items:1` anahtarını bellekten yok eder (invalidation). Sonrasında yapılacak bir `GET` çağrısı tekrar veritabanına gitmek zorunda kalır.
+
+**Örnek İstek:**
+```bash
+curl -X DELETE http://localhost:8080/api/items/1
+```
+
+---
+
+#### 🚀 6. Toplu Yazma ve Pipelining Testi: `POST /api/items/pipeline-demo?count={N}`
+
+* **Amacı:** Ağdaki gidiş-dönüş sürelerini (Round Trip Time - RTT) sıfırlayan **Redis Pipelining** tekniğini gösterir.
+* **Nasıl Çalışır?** Verilen adet kadar (`count`) nesneyi tek tek ağ üzerinden göndermek yerine, `redisTemplate.executePipelined()` ile tek bir TCP soket tamponunda paketleyip Redis'e fırlatır.
+
+**Örnek İstek:**
+```bash
+curl -X POST "http://localhost:8080/api/items/pipeline-demo?count=500"
+```
+
+**Dönen Yanıt (HTTP 200):**
+```json
+{
+  "itemsProcessed": 500,
+  "elapsedMs": 34,
+  "pipelineResultsCount": 500,
+  "message": "Successfully executed pipelined batch write to Redis."
+}
+```
+*(500 adet nesnenin TLS üzerinden Redis Enterprise'a yazılması sadece ~34 ms sürer).*
+
+---
+
+#### 🧪 7. Connection Pool Eşzamanlı Yük Testi: `POST /api/pool/test-concurrency`
+
+* **Amacı:** Apache Commons Pool 2 bağlantı havuzunun eşzamanlı çoklu thread altında sorunsuz çalıştığını kanıtlar.
+* **Nasıl Çalışır?** Java `ExecutorService` ile örneğin **20 paralel iş parçacığı (threads)** açar ve havuzdan ödünç alınan bağlantılarla aynı anda **100 adet işlem** (`SET` + `GET`) koşturur. İşlem bitince bağlantıların havuza sağlıklı iade edildiğini ve hata sayısının 0 olduğunu raporlar.
+
+**Örnek İstek:**
+```bash
+curl -X POST "http://localhost:8080/api/pool/test-concurrency?threads=20&totalRequests=100"
+```
+
+**Dönen Yanıt (HTTP 200):**
+```json
+{
+  "threads": 20,
+  "totalRequests": 100,
+  "successCount": 100,
+  "errorCount": 0,
+  "totalElapsedMs": 240,
+  "avgLatencyPerRequestMs": 2.4,
+  "message": "Concurrent pool load test completed successfully."
+}
+```
+
+---
+
+#### 🌐 8. Canlı Cluster Topolojisi İnceleme: `GET /api/cluster/topology`
+
+* **Amacı:** Redis Enterprise kümesindeki shard'ları, rollerini (Master/Replica), OpenShift pod adreslerini ve sorumlu oldukları Hash Slot aralıklarını okunaklı JSON olarak inceler.
+* **Nasıl Çalışır?** Redis'e `CLUSTER NODES` komutunu gönderir ve yanıtı parse eder.
+
+**Örnek İstek:**
+```bash
+curl -s http://localhost:8080/api/cluster/topology
+```
+
+**Dönen Yanıt (HTTP 200):**
+```json
+{
+  "clusterModeConfigured": false,
+  "nodesCount": 1,
+  "nodes": [
+    {
+      "nodeId": "2",
+      "address": "10.131.4.91:12021",
+      "flags": "myself,master",
+      "masterId": null,
+      "linkState": "connected",
+      "servedSlots": [
+        "0-16383"
+      ]
+    }
+  ],
+  "rawOutput": "2 10.131.4.91:12021 myself,master - 0 0 0 connected 0-16383\n"
+}
+```
+*(Bu çıktı; kümenin 1 adet master shard'dan oluştuğunu, OpenShift içindeki pod adresinin `10.131.4.91:12021` olduğunu ve tüm `0-16383` slotlarının bu shard üzerinde olduğunu açıkça gösterir).*

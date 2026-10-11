@@ -138,8 +138,12 @@ public class RedisConfiguration {
                             : io.lettuce.core.protocol.ProtocolVersion.RESP2;
             log.info("Configuring Lettuce protocol version: {}", protocolVersion);
 
-            if (properties.getCluster().isEnabled()) {
-                log.info("Cluster mode is enabled. Applying ClusterTopologyRefreshOptions.");
+            boolean isCluster = redisProperties.getCluster() != null
+                    && redisProperties.getCluster().getNodes() != null
+                    && !redisProperties.getCluster().getNodes().isEmpty();
+
+            if (isCluster) {
+                log.info("Cluster nodes configured. Applying ClusterTopologyRefreshOptions.");
                 ClusterTopologyRefreshOptions topologyRefreshOptions = ClusterTopologyRefreshOptions.builder()
                         .enableAllAdaptiveRefreshTriggers() // Refreshes on MOVED, ASK, PERSISTENT_RECONNECTS, UNCOVERED_SLOT
                         .enablePeriodicRefresh(properties.getTopologyRefresh().getPeriodicRefreshInterval())

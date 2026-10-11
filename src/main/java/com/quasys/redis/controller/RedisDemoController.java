@@ -108,7 +108,10 @@ public class RedisDemoController {
                 clientInfo.put("poolConfiguration", poolStats);
             }
         }
-        clientInfo.put("clusterMode", properties.getCluster().isEnabled());
+        boolean isCluster = redisProperties.getCluster() != null
+                && redisProperties.getCluster().getNodes() != null
+                && !redisProperties.getCluster().getNodes().isEmpty();
+        clientInfo.put("clusterMode", isCluster);
         clientInfo.put("protocol", properties.getProtocol());
         clientInfo.put("autoReconnect", properties.isAutoReconnect());
         clientInfo.put("pingBeforeActivate", properties.isPingBeforeActivate());
@@ -248,7 +251,10 @@ public class RedisDemoController {
     @GetMapping("/cluster/topology")
     public ResponseEntity<Map<String, Object>> getClusterTopology() {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("clusterModeConfigured", properties.getCluster().isEnabled());
+        boolean isCluster = redisProperties.getCluster() != null
+                && redisProperties.getCluster().getNodes() != null
+                && !redisProperties.getCluster().getNodes().isEmpty();
+        response.put("clusterModeConfigured", isCluster);
 
         try {
             org.springframework.data.redis.connection.RedisConnectionFactory factory = redisTemplate.getConnectionFactory();
