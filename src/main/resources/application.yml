@@ -33,7 +33,7 @@ spring:
       # Key Prefix (Redis Enterprise ACL Multi-Tenancy & Namespace Desteği)
       # Tek bir database'i birden fazla ekibin ACL kısıtlamalarıyla (~prefix:*) güvenli paylaşmasını sağlar.
       # Boş bırakılırsa ("") prefix uygulanmaz.
-      key-prefix: ${REDIS_KEY_PREFIX:quasys:}
+      key-prefix: ${REDIS_KEY_PREFIX:}
 
       # Redis Protokol Sürümü (RESP2 veya RESP3)
       # ACL kısıtlı kullanıcılarda Lettuce'ın 'CLIENT SETINFO' komutu gönderip NOPERM hatası almasını önlemek için RESP2 önerilir.
