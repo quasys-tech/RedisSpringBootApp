@@ -95,6 +95,14 @@ public class RedisDemoController {
             boolean isPooled = lettuceFactory.getClientConfiguration() instanceof org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
             clientInfo.put("poolingEnabled", isPooled);
             clientInfo.put("shareNativeConnection", lettuceFactory.getShareNativeConnection());
+            if (isPooled && redisProperties.getLettuce().getPool() != null) {
+                Map<String, Object> poolStats = new LinkedHashMap<>();
+                poolStats.put("maxActive", redisProperties.getLettuce().getPool().getMaxActive());
+                poolStats.put("maxIdle", redisProperties.getLettuce().getPool().getMaxIdle());
+                poolStats.put("minIdle", redisProperties.getLettuce().getPool().getMinIdle());
+                poolStats.put("maxWait", redisProperties.getLettuce().getPool().getMaxWait());
+                clientInfo.put("poolConfiguration", poolStats);
+            }
         }
         clientInfo.put("clusterMode", properties.getCluster().isEnabled());
         clientInfo.put("autoReconnect", properties.isAutoReconnect());
@@ -180,6 +188,52 @@ public class RedisDemoController {
         response.put("elapsedMs", elapsed);
         response.put("pipelineResultsCount", results.size());
         response.put("message", "Successfully executed pipelined batch write to Redis.");
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Demonstrates concurrent load testing on the Redis connection pool.
+     * Spawns parallel threads executing simultaneous Redis commands.
+     */
+    @PostMapping("/pool/test-concurrency")
+    public ResponseEntity<Map<String, Object>> testPoolConcurrency(
+            @RequestParam(defaultValue = "10") int threads,
+            @RequestParam(defaultValue = "50") int totalRequests) {
+
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger errorCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        long start = System.currentTimeMillis();
+        List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (int i = 1; i <= totalRequests; i++) {
+            final int id = i;
+            java.util.concurrent.CompletableFuture<Void> future = java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    redisTemplate.opsForValue().set("pool:test:" + id, "concurrency-val-" + id);
+                    redisTemplate.opsForValue().get("pool:test:" + id);
+                    successCount.incrementAndGet();
+                } catch (Exception ex) {
+                    log.error("Concurrent pool operation error on task {}: {}", id, ex.getMessage());
+                    errorCount.incrementAndGet();
+                }
+            }, executor);
+            futures.add(future);
+        }
+
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+        long elapsed = System.currentTimeMillis() - start;
+        executor.shutdown();
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("threads", threads);
+        response.put("totalRequests", totalRequests);
+        response.put("successCount", successCount.get());
+        response.put("errorCount", errorCount.get());
+        response.put("totalElapsedMs", elapsed);
+        response.put("avgLatencyPerRequestMs", (double) elapsed / totalRequests);
+        response.put("message", "Concurrent pool load test completed successfully.");
         return ResponseEntity.ok(response);
     }
 }
