@@ -96,5 +96,5 @@ logging:
     root: INFO
     com.quasys.redis: DEBUG
     io.lettuce.core: INFO
-    io.lettuce.core.cluster: DEBUG
+    io.lettuce.core.cluster: INFO
     org.springframework.data.redis: INFO
